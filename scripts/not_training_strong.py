@@ -59,7 +59,7 @@ CPKT_INTERVAL = 2000
 MAX_STEPS = 100001
 SEED = 0x000000
 
-EXP_NAME = f'{DATASET1}_{DATASET2}_T{T_ITERS}_{COST}_{IMG_SIZE}'
+EXP_NAME = f'{DATASET1}_{DATASET2}_T{T_ITERS}_{COST}_{IMG_SIZE}_BS{BATCH_SIZE}'
 OUTPUT_PATH = '../checkpoints/{}/{}_{}_{}/'.format(COST, DATASET1, DATASET2, IMG_SIZE)
 
 # END OF CONFIG
@@ -125,16 +125,33 @@ if __name__ == "__main__":
     for step in tqdm(range(MAX_STEPS)):
         # T optimization
         unfreeze(T); freeze(f)
+        potentials, costs, T_losses = [], [], []  # to compute means for logging
         for t_iter in range(T_ITERS):
             T_opt.zero_grad()
             X = X_sampler.sample(BATCH_SIZE)
             T_X = T(X)
+            potential_T_X = f(T_X).mean()
+            potentials.append(potential_T_X.item())
             if COST == 'mse':
-                T_loss = F.mse_loss(X, T_X).mean() - f(T_X).mean()
+                cost_value = F.mse_loss(X, T_X).mean()
+                costs.append(cost_value.item())
             else:
                 raise Exception('Unknown COST')
-            T_loss.backward(); T_opt.step()
-        del T_loss, T_X, X; gc.collect(); torch.cuda.empty_cache()
+            T_loss = cost_value - potential_T_X
+            T_losses.append(T_loss.item())
+            T_loss.backward()
+            T_opt.step()
+        wandb.log(
+            {
+                "mean_f(T_X)": np.mean(potentials),
+                "mean_Cost(X, T_X)": np.mean(costs),
+                "mean_T_loss": np.mean(T_losses)
+            },
+            step=step,
+        )
+        del potentials, costs, T_losses, potential_T_X, cost_value, T_loss, T_X, X
+        gc.collect()
+        torch.cuda.empty_cache()
 
         # f optimization
         freeze(T); unfreeze(f)
@@ -143,28 +160,44 @@ if __name__ == "__main__":
             T_X = T(X)
         Y = Y_sampler.sample(BATCH_SIZE)
         f_opt.zero_grad()
-        f_loss = f(T_X).mean() - f(Y).mean()
-        f_loss.backward(); f_opt.step();
-        wandb.log({f'f_loss' : f_loss.item()}, step=step)
-        del f_loss, Y, X, T_X; gc.collect(); torch.cuda.empty_cache()
+        potential_T_X = f(T_X).mean()
+        potential_Y = f(Y).mean()
+        f_loss = potential_T_X - potential_Y
+        f_loss.backward()
+        f_opt.step()
+        wandb.log(
+            {
+                "f(T_X)": potential_T_X.item(),
+                "f(Y)": potential_Y.item(),
+                "f_loss": f_loss.item(),
+            },
+            step=step,
+        )
+        del potential_T_X, potential_Y, f_loss, Y, X, T_X
+        gc.collect()
+        torch.cuda.empty_cache()
 
         if step % PLOT_INTERVAL == 0:
             print('Plotting')
 
             fig, axes = plot_images(X_fixed, Y_fixed, T)
             wandb.log({'Fixed Images' : [wandb.Image(fig2img(fig))]}, step=step)
+            plt.close()
 
             fig, axes = plot_random_images(X_sampler,  Y_sampler, T)
             wandb.log({'Random Images' : [wandb.Image(fig2img(fig))]}, step=step)
+            plt.close()
 
             fig, axes = plot_images(X_test_fixed, Y_test_fixed, T)
             wandb.log({'Fixed Test Images' : [wandb.Image(fig2img(fig))]}, step=step)
+            plt.close()
 
             fig, axes = plot_random_images(X_test_sampler, Y_test_sampler, T)
             wandb.log({'Random Test Images' : [wandb.Image(fig2img(fig))]}, step=step)
+            plt.close()
 
         if step % CPKT_INTERVAL == CPKT_INTERVAL - 1:
-            freeze(T);
+            freeze(T)
 
             print('Computing FID')
             mu, sigma = get_pushed_loader_stats(T, X_test_sampler.loader)
@@ -172,9 +205,14 @@ if __name__ == "__main__":
             wandb.log({f'FID (Test)' : fid}, step=step)
             del mu, sigma
 
-            torch.save(T.state_dict(), os.path.join(OUTPUT_PATH, f'{SEED}_{step}.pt'))
-            torch.save(f.state_dict(), os.path.join(OUTPUT_PATH, f'f_{SEED}_{step}.pt'))
-            torch.save(f_opt.state_dict(), os.path.join(OUTPUT_PATH, f'f_opt_{SEED}_{step}.pt'))
-            torch.save(T_opt.state_dict(), os.path.join(OUTPUT_PATH, f'T_opt_{SEED}_{step}.pt'))
+            state_dict = {
+                "T_state_dict": T.state_dict(),
+                "f_state_dict": f.state_dict(),
+                "T_opt_state_dict": T_opt.state_dict(),
+                "f_opt_state_dict": f_opt.state_dict(),
+            }
 
-        gc.collect(); torch.cuda.empty_cache()
+            torch.save(state_dict, os.path.join(OUTPUT_PATH, f'{SEED}_{step}.pt'))
+
+        gc.collect()
+        torch.cuda.empty_cache()
