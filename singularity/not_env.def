@@ -1,0 +1,40 @@
+Bootstrap: docker
+From: nvcr.io/nvidia/cuda:11.6.2-cudnn8-devel-ubuntu20.04
+%post
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update
+        apt-get -y install \
+                git \
+                curl \
+                wget \
+                vim \
+                tar \
+                unzip \
+                tmux \
+                htop \
+                python3-pip \
+                build-essential
+        ln -s /usr/bin/python3 /usr/bin/python
+        pip install --upgrade pip setuptools
+        pip install \
+                torch==1.13.1+cu116 \
+                torchvision==0.14.1+cu116 \
+                --extra-index-url https://download.pytorch.org/whl/cu116
+        pip install \
+                numpy \
+                matplotlib \
+                tqdm \
+                wandb \
+                Pillow \
+                scipy \
+                pandas \
+                scikit-learn \
+                seaborn \
+                POT \
+                h5py \
+                diffusers \
+                pytorch-fid \
+                ipython \
+                jupyter \
+                ipywidgets \
+                protobuf==3.20.*
