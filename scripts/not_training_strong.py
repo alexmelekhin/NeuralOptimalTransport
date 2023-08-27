@@ -40,6 +40,7 @@ PngImagePlugin.MAX_TEXT_CHUNK = LARGE_ENOUGH_NUMBER * (1024**2)
 # CONFIG
 
 DEVICE_IDS = [0]
+NUM_WORKERS = 8
 
 # DATASET1, DATASET1_PATH = 'handbag', '../../data/handbag_128.hdf5'
 # DATASET2, DATASET2_PATH = 'shoes', '../../data/shoes_128.hdf5'
@@ -47,11 +48,13 @@ DEVICE_IDS = [0]
 DATASET1, DATASET1_PATH = 'celeba_female', '/mnt/ssd1/Datasets/CelebA'
 DATASET2, DATASET2_PATH = 'aligned_anime_faces', '/mnt/ssd1/Datasets/AlignedAnimeFaces_128'
 
+batch_scale = 1  # to try linear scaling rule
+
 T_ITERS = 10
-f_LR, T_LR = 1e-4, 1e-4
+f_LR, T_LR = 1e-4 * batch_scale, 1e-4 * batch_scale  # baseline is 1e-4
 IMG_SIZE = 128
 
-BATCH_SIZE = 64
+BATCH_SIZE = int(64 * batch_scale)  # baseline is 64
 
 PLOT_INTERVAL = 100
 COST = 'mse' # Mean Squared Error
@@ -89,8 +92,8 @@ if __name__ == "__main__":
         mu_data, sigma_data = data_stats['mu'], data_stats['sigma']
     del data_stats
 
-    X_sampler, X_test_sampler = load_dataset(DATASET1, DATASET1_PATH, img_size=IMG_SIZE)
-    Y_sampler, Y_test_sampler = load_dataset(DATASET2, DATASET2_PATH, img_size=IMG_SIZE)
+    X_sampler, X_test_sampler = load_dataset(DATASET1, DATASET1_PATH, img_size=IMG_SIZE, num_workers=NUM_WORKERS)
+    Y_sampler, Y_test_sampler = load_dataset(DATASET2, DATASET2_PATH, img_size=IMG_SIZE, num_workers=NUM_WORKERS)
 
     torch.cuda.empty_cache()
     gc.collect()
@@ -121,6 +124,9 @@ if __name__ == "__main__":
 
     T_opt = torch.optim.Adam(T.parameters(), lr=T_LR, weight_decay=1e-10)
     f_opt = torch.optim.Adam(f.parameters(), lr=f_LR, weight_decay=1e-10)
+
+    print(f"===> Learning rates:")
+    print(f"\tT_LR = {T_LR}\n\tf_LR = {f_LR}\n\n")
 
     for step in tqdm(range(MAX_STEPS)):
         # T optimization
