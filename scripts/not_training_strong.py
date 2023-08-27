@@ -92,8 +92,12 @@ if __name__ == "__main__":
         mu_data, sigma_data = data_stats['mu'], data_stats['sigma']
     del data_stats
 
-    X_sampler, X_test_sampler = load_dataset(DATASET1, DATASET1_PATH, img_size=IMG_SIZE, num_workers=NUM_WORKERS)
-    Y_sampler, Y_test_sampler = load_dataset(DATASET2, DATASET2_PATH, img_size=IMG_SIZE, num_workers=NUM_WORKERS)
+    X_sampler, X_test_sampler = load_dataset(
+        DATASET1, DATASET1_PATH, img_size=IMG_SIZE, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS
+    )
+    Y_sampler, Y_test_sampler = load_dataset(
+        DATASET2, DATASET2_PATH, img_size=IMG_SIZE, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS
+    )
 
     torch.cuda.empty_cache()
     gc.collect()
