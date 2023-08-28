@@ -15,6 +15,11 @@ From: nvcr.io/nvidia/cuda:11.6.2-cudnn8-devel-ubuntu20.04
                 python3-pip \
                 build-essential
         ln -s /usr/bin/python3 /usr/bin/python
+
+        curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash
+        apt-get update
+        apt-get install git-lfs
+
         pip install --upgrade pip setuptools
         pip install \
                 torch==1.13.1+cu116 \
@@ -33,6 +38,7 @@ From: nvcr.io/nvidia/cuda:11.6.2-cudnn8-devel-ubuntu20.04
                 POT \
                 h5py \
                 diffusers \
+                accelerate \
                 pytorch-fid \
                 ipython \
                 jupyter \
