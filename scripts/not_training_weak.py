@@ -198,7 +198,7 @@ if __name__ == "__main__":
         f_opt.step()
         wandb.log(
             {
-                "f(T_X)": potential_T_XZ.item(),
+                "f(T_XZ)": potential_T_XZ.item(),
                 "f(Y)": potential_Y.item(),
                 "f_loss": f_loss.item(),
             },
