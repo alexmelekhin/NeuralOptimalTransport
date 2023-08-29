@@ -85,6 +85,15 @@ def plot_latent_Z_images(XZ, Y, T, decoder):
     gc.collect()
     return fig, axes
 
+def plot_random_Z_images(X_sampler, ZC, Z_STD, Y_sampler, T):
+    X = X_sampler.sample(10)[:,None].repeat(1,4,1,1,1)
+    with torch.no_grad():
+        Z = torch.randn(10, 4, ZC, X.size(3), X.size(4), device='cuda') * Z_STD
+        XZ = torch.cat([X, Z], dim=2)
+    X = X_sampler.sample(10)
+    Y = Y_sampler.sample(10)
+    return plot_Z_images(XZ, Y, T)
+
 def plot_random_latent_Z_images(X_sampler, ZC, Z_STD, Y_sampler, T, decoder):
     X = X_sampler.sample(10)[:,None].repeat(1,4,1,1,1)
     with torch.no_grad():
