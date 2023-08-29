@@ -1,4 +1,5 @@
 import os, sys
+from datetime import datetime
 sys.path.append("..")
 
 import matplotlib
@@ -40,19 +41,19 @@ PngImagePlugin.MAX_TEXT_CHUNK = LARGE_ENOUGH_NUMBER * (1024**2)
 # CONFIG
 
 DEVICE_IDS = [0]
-NUM_WORKERS = 8
+NUM_WORKERS = 8 * len(DEVICE_IDS)
 
 # DATASET1, DATASET1_PATH = 'handbag', '../../data/handbag_128.hdf5'
 # DATASET2, DATASET2_PATH = 'shoes', '../../data/shoes_128.hdf5'
 
-DATASET1, DATASET1_PATH = 'celeba_female', '/mnt/ssd1/Datasets/CelebA'
-DATASET2, DATASET2_PATH = 'aligned_anime_faces', '/mnt/ssd1/Datasets/AlignedAnimeFaces_128'
+DATASET1, DATASET1_PATH = 'celeba_female', '/gpfs/gpfs0/groznyy.sergey/Datasets/CelebA'
+DATASET2, DATASET2_PATH = 'aligned_anime_faces', '/gpfs/gpfs0/groznyy.sergey/Datasets/AlignedAnimeFaces_128'
 
 batch_scale = 1  # to try linear scaling rule
 
 T_ITERS = 10
 f_LR, T_LR = 1e-4 * batch_scale, 1e-4 * batch_scale  # baseline is 1e-4
-IMG_SIZE = 128
+IMG_SIZE = 64
 
 ZC = 1
 Z_STD = 0.1
@@ -61,8 +62,9 @@ BATCH_SIZE = int(64 * batch_scale)  # baseline is 64
 Z_SIZE = 8
 
 PLOT_INTERVAL = 100
+CKPT_INTERVAL = 100
 COST = 'weak_mse'
-CPKT_INTERVAL = 2000
+FID_INTERVAL = 1000
 MAX_STEPS = 100001
 SEED = 0x000000
 
@@ -71,7 +73,8 @@ GAMMA0, GAMMA1 = 0.0, 0.66
 GAMMA_ITERS = int(25000 / batch_scale)  # TODO: not sure whether need to scale it
 
 EXP_NAME = f'{DATASET1}_{DATASET2}_T{T_ITERS}_{COST}_{IMG_SIZE}_BS{BATCH_SIZE}'
-OUTPUT_PATH = '../checkpoints/{}/{}_{}_{}/'.format(COST, DATASET1, DATASET2, IMG_SIZE)
+cur_datetime = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+OUTPUT_PATH = '../checkpoints/{}/{}_{}_{}_{}/'.format(COST, DATASET1, DATASET2, IMG_SIZE, cur_datetime)
 
 # END OF CONFIG
 ################
@@ -122,7 +125,8 @@ if __name__ == "__main__":
     print('T params:', np.sum([np.prod(p.shape) for p in T.parameters()]))
     print('f params:', np.sum([np.prod(p.shape) for p in f.parameters()]))
 
-    torch.manual_seed(0xBADBEEF); np.random.seed(0xBADBEEF)
+    torch.manual_seed(0xBADBEEF)
+    np.random.seed(0xBADBEEF)
     X_fixed = X_sampler.sample(10)[:,None].repeat(1,4,1,1,1)
     with torch.no_grad():
         Z_fixed = torch.randn(10, 4, ZC, IMG_SIZE, IMG_SIZE, device='cuda') * Z_STD
@@ -227,7 +231,18 @@ if __name__ == "__main__":
             wandb.log({'Random Test Images' : [wandb.Image(fig2img(fig))]}, step=step)
             plt.close(fig)
 
-        if step % CPKT_INTERVAL == CPKT_INTERVAL - 1:
+        if step % CKPT_INTERVAL == CKPT_INTERVAL - 1:
+            state_dict = {
+                "T_state_dict": T.state_dict(),
+                "f_state_dict": f.state_dict(),
+                "T_opt_state_dict": T_opt.state_dict(),
+                "f_opt_state_dict": f_opt.state_dict(),
+            }
+            ckpt_path = os.path.join(OUTPUT_PATH, f'{SEED}_{step}.pt')
+            torch.save(state_dict, ckpt_path)
+            wandb.save(ckpt_path)
+
+        if step % FID_INTERVAL == FID_INTERVAL - 1:
             freeze(T)
 
             print('Computing FID')
@@ -235,15 +250,6 @@ if __name__ == "__main__":
             fid = calculate_frechet_distance(mu_data, sigma_data, mu, sigma)
             wandb.log({f'FID (Test)' : fid}, step=step)
             del mu, sigma
-
-            state_dict = {
-                "T_state_dict": T.state_dict(),
-                "f_state_dict": f.state_dict(),
-                "T_opt_state_dict": T_opt.state_dict(),
-                "f_opt_state_dict": f_opt.state_dict(),
-            }
-
-            torch.save(state_dict, os.path.join(OUTPUT_PATH, f'{SEED}_{step}.pt'))
 
         gc.collect()
         torch.cuda.empty_cache()
