@@ -240,7 +240,7 @@ if __name__ == "__main__":
             }
             ckpt_path = os.path.join(OUTPUT_PATH, f'{SEED}_{step}.pt')
             torch.save(state_dict, ckpt_path)
-            wandb.save(ckpt_path)
+            wandb.save(ckpt_path, base_path="../")
 
         if step % FID_INTERVAL == FID_INTERVAL - 1:
             freeze(T)
