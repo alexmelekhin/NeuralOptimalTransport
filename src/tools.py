@@ -1,3 +1,5 @@
+from typing import Union
+from pathlib import Path
 import pandas as pd
 import numpy as np
 
@@ -5,8 +7,8 @@ import os
 import itertools
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from torch import nn, Tensor
+from torch.nn import functional as F
 
 from tqdm import tqdm_notebook
 import multiprocessing
@@ -21,9 +23,36 @@ from torch.utils.data import TensorDataset
 
 import gc
 
-from torch.utils.data import Subset, DataLoader
+from torch.utils.data import Subset, DataLoader, Dataset
 from torchvision.transforms import Compose, Resize, Normalize, ToTensor, RandomCrop
 from torchvision.datasets import ImageFolder
+
+
+class LatentsDataset(Dataset):
+    def __init__(self, path: Union[str, Path]) -> None:
+        super().__init__()
+        self.data_dir = Path(path)
+        self.files_list = sorted(list(self.data_dir.glob('*.pt')))
+
+    def __getitem__(self, index: int) -> Tensor:
+        return torch.load(self.files_list[index]), torch.tensor(0)
+
+    def __len__(self) -> int:
+        return len(self.files_list)
+
+
+def load_latents_dataset(path, batch_size=64, device='cuda', num_workers=8):
+    train_path = Path(path) / "train"
+    test_path = Path(path) / "test"
+    train_dataset = LatentsDataset(path=train_path)
+    test_dataset = LatentsDataset(path=test_path)
+    train_sampler = LoaderSampler(
+        DataLoader(train_dataset, shuffle=True, num_workers=num_workers, batch_size=batch_size), device
+    )
+    test_sampler = LoaderSampler(
+        DataLoader(test_dataset, shuffle=True, num_workers=num_workers, batch_size=batch_size), device
+    )
+    return train_sampler, test_sampler
 
 
 def load_dataset(name, path, img_size=64, batch_size=64, test_ratio=0.1, device='cuda', num_workers=8):
@@ -188,4 +217,34 @@ def get_Z_pushed_loader_stats(T, loader, ZC=1, Z_STD=0.1, batch_size=8, verbose=
     pred_arr = np.vstack(pred_arr)
     mu, sigma = np.mean(pred_arr, axis=0), np.cov(pred_arr, rowvar=False)
     gc.collect(); torch.cuda.empty_cache()
+    return mu, sigma
+
+def get_latent_Z_pushed_loader_stats(T, decoder, loader, ZC=1, Z_STD=0.1, batch_size=8, verbose=False,
+                              device='cuda',
+                              use_downloaded_weights=False):
+    dims = 2048
+    block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]
+    model = InceptionV3([block_idx], use_downloaded_weights=use_downloaded_weights).to(device)
+    freeze(model)
+    freeze(T)
+    freeze(decoder)
+
+    size = len(loader.dataset)
+    pred_arr = []
+
+    with torch.no_grad():
+        for step, (X, _) in enumerate(loader) if not verbose else tqdm(enumerate(loader)):
+            Z = torch.randn(len(X), ZC, X.size(2), X.size(3)) * Z_STD
+            XZ = torch.cat([X,Z], dim=1)
+            for i in range(0, len(X), batch_size):
+                start, end = i, min(i + batch_size, len(X))
+                T_XZ = T(XZ[start:end].type(torch.FloatTensor).to(device))
+                T_XZ_decoded = decoder.decode(T_XZ).sample
+                batch = T_XZ_decoded.add(1).mul(.5)
+                pred_arr.append(model(batch)[0].cpu().data.numpy().reshape(end-start, -1))
+
+    pred_arr = np.vstack(pred_arr)
+    mu, sigma = np.mean(pred_arr, axis=0), np.cov(pred_arr, rowvar=False)
+    gc.collect()
+    torch.cuda.empty_cache()
     return mu, sigma
