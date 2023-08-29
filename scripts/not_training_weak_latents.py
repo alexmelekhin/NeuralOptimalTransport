@@ -223,15 +223,15 @@ if __name__ == "__main__":
             wandb.log({'Fixed Images' : [wandb.Image(fig2img(fig))]}, step=step)
             plt.close(fig)
 
-            fig, axes = plot_random_latent_Z_images(X_sampler, ZC, Z_STD,  Y_sampler, T)
+            fig, axes = plot_random_latent_Z_images(X_sampler, ZC, Z_STD,  Y_sampler, T, decoder=vae_decoder)
             wandb.log({'Random Images' : [wandb.Image(fig2img(fig))]}, step=step)
             plt.close(fig)
 
-            fig, axes = plot_latent_Z_images(XZ_test_fixed, Y_test_fixed, T)
+            fig, axes = plot_latent_Z_images(XZ_test_fixed, Y_test_fixed, T, decoder=vae_decoder)
             wandb.log({'Fixed Test Images' : [wandb.Image(fig2img(fig))]}, step=step)
             plt.close(fig)
 
-            fig, axes = plot_random_latent_Z_images(X_test_sampler, ZC, Z_STD,  Y_test_sampler, T)
+            fig, axes = plot_random_latent_Z_images(X_test_sampler, ZC, Z_STD,  Y_test_sampler, T, decoder=vae_decoder)
             wandb.log({'Random Test Images' : [wandb.Image(fig2img(fig))]}, step=step)
             plt.close(fig)
 
