@@ -23,6 +23,8 @@ from tqdm import tqdm
 from PIL import PngImagePlugin
 LARGE_ENOUGH_NUMBER = 100
 PngImagePlugin.MAX_TEXT_CHUNK = LARGE_ENOUGH_NUMBER * (1024**2)
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 DEVICE_ID = 0
 

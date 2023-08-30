@@ -14,6 +14,8 @@ from tqdm import tqdm_notebook
 import multiprocessing
 
 from PIL import Image
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 from .inception import InceptionV3
 from tqdm import tqdm_notebook as tqdm
 from .fid_score import calculate_frechet_distance
