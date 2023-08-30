@@ -29,10 +29,40 @@ def plot_images(X, Y, T):
     torch.cuda.empty_cache(); gc.collect()
     return fig, axes
 
+def plot_latent_images(X, Y, T, decoder):
+    freeze(T)
+    freeze(decoder)
+    with torch.no_grad():
+        T_X = T(X)
+        X_decoded = decoder.decode(X).sample
+        T_X_decoded = decoder.decode(T_X).sample
+        Y_decoded = decoder.decode(Y).sample
+        imgs = torch.cat([X_decoded, T_X_decoded, Y_decoded]).to('cpu').permute(0,2,3,1).mul(0.5).add(0.5).numpy().clip(0,1)
+
+    fig, axes = plt.subplots(3, 10, figsize=(15, 4.5), dpi=150)
+    for i, ax in enumerate(axes.flatten()):
+        ax.imshow(imgs[i])
+        ax.get_xaxis().set_visible(False)
+        ax.set_yticks([])
+
+    axes[0, 0].set_ylabel('X', fontsize=24)
+    axes[1, 0].set_ylabel('T(X)', fontsize=24)
+    axes[2, 0].set_ylabel('Y', fontsize=24)
+
+    fig.tight_layout(pad=0.001)
+    torch.cuda.empty_cache()
+    gc.collect()
+    return fig, axes
+
 def plot_random_images(X_sampler, Y_sampler, T):
     X = X_sampler.sample(10)
     Y = Y_sampler.sample(10)
     return plot_images(X, Y, T)
+
+def plot_random_latent_images(X_sampler, Y_sampler, T, decoder):
+    X = X_sampler.sample(10)
+    Y = Y_sampler.sample(10)
+    return plot_latent_images(X, Y, T, decoder)
 
 def plot_Z_images(XZ, Y, T):
     freeze(T);
