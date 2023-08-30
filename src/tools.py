@@ -55,12 +55,20 @@ def load_latents_dataset(path, batch_size=64, device='cuda', num_workers=8):
     return train_sampler, test_sampler
 
 
+def check_image(path):
+    try:
+        im = Image.open(path)
+        return True
+    except:
+        return False
+
+
 def load_dataset(name, path, img_size=64, batch_size=64, test_ratio=0.1, device='cuda', num_workers=8):
     if name in ['shoes', 'handbag', 'outdoor', 'church']:
         dataset = h5py_to_dataset(path, img_size)
     elif name in ['celeba_female', 'celeba_male', 'aligned_anime_faces', 'describable_textures']:
         transform = Compose([Resize((img_size, img_size)), ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-        dataset = ImageFolder(path, transform=transform)
+        dataset = ImageFolder(path, transform=transform, is_valid_file=check_image)
     else:
         raise Exception('Unknown dataset')
 
